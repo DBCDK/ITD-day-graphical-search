@@ -2,6 +2,10 @@
  * Helper functions
  */
 
+/*Deps.autorun(function () {
+    Meteor.subscribe("Works");
+});*/
+
 var okCancelEvents = function (selector, callbacks) {
     var cancel = callbacks.cancel || function () {};
     var ok = callbacks.ok || function () {};
@@ -32,51 +36,24 @@ var okCancelEvents = function (selector, callbacks) {
  * TEMPLATES
  */
 
-Template.map.rendered = function () {
-    var color = d3.scale.category20();
-    var force = d3.layout.force()
-        .charge(-120)
-        .linkDistance(500)
-        .size([1000, 800]);
+    var svg;
+var force = d3.layout.force()
+    .charge(-20)
+    .linkDistance(100)
+    .size([1000, 1000])
+    .gravity(0.01);
 
+Template.map.rendered = function () {
     var self = this;
-    self.node = self.find("svg");
-    var graph = d3.select(self.node).select(".circles").selectAll("circle")
-        .data(Works.find().fetch(), function (party) { return party._id; });
+    svg = self.find("svg");
     if (! self.handle) {
         self.handle = Deps.autorun(function () {
                 var works = Works.find().fetch();
-                force
-                    .nodes(works)
-                    .links([])
-                    .start();
+                if(works.length){
+                    //ParseLinks(null);
+                    ForceView(works, svg);
+                }
 
-                var link = d3.select(self.node).selectAll(".link")
-                    .data([])
-                    .enter().append("line")
-                    .attr("class", "link")
-                    .style("stroke-width", function(d) { return Math.sqrt(10); });
-
-                var node = d3.select(self.node).selectAll(".node")
-                    .data(works)
-                    .enter().append("circle")
-                    .attr("class", "node")
-                    .attr("r", 5)
-                    .style("fill", function(d) { return color(10); })
-                    .call(force.drag);
-
-                node.append("title")
-                    .text(function(d) { return Math.floor(Math.random() * 500);});
-
-                force.on("tick", function() {
-                    link.attr("x1", function(d) { return d.source.x; })
-                        .attr("y1", function(d) { return d.source.y; })
-                        .attr("x2", function(d) { return d.target.x; })
-                        .attr("y2", function(d) { return d.target.y; });
-
-                    node.attr("cx", function(d) { return d.x; })
-                        .attr("cy", function(d) { return d.y; });
-                })
             }
         );
     }
@@ -86,21 +63,122 @@ Template.search.events(okCancelEvents(
     '#search-field',
     {
         ok: function (text, evt) {
-            console.log(text);
             Meteor.call('search', text, function (error, result){
                console.log(result)
             });
+
         }
     }));
 
 
 Template.textresult.works = function () {
-    //console.log(Works.find().fetch());
     return Works.find({}, {sort: {title: 1}});
 };
 
 Template.work.events({
     'click': function () {
         Works.remove(this._id);
+        var works = Works.find().fetch();
+
+        //ForceView(works, svg);
+
     }
 });
+
+/** Adds works to svg
+ *
+ * @param works
+ * @param svg
+ * @constructor
+ */
+ForceView = function (works, svg) {
+    d3.select(svg).selectAll(".node").remove();
+    d3.select(svg).selectAll(".link").remove();
+    console.log(works);
+    if (!works || works.length == 0) {
+        console.log('cancel');
+        return;
+    }
+    var handler = new ResultHandler(works);
+    var links = handler.getLinks();
+    var color = d3.scale.category10();
+    //console.log(works.length);
+    force
+        .nodes(works)
+        .links(links)
+        .start();
+
+    var link = d3.select(svg).selectAll(".link")
+        .data(links)
+        .enter().append("line")
+        .attr("class", "link")
+        .style("stroke-width", function(d) { return Math.sqrt(10); });
+
+    var node = d3.select(svg).selectAll(".node")
+        .data(works)
+        .enter().append("circle")
+        .attr("class", "node")
+        .call(force.drag)
+        .attr("r", function(d) { return d.count; })
+        .style("fill", function(d) { return color(d.group); });
+
+
+    node.append("title")
+        .text(function(d) { return d.name;});
+
+    force.on("tick", function() {
+        link.attr("x1", function(d) { return d.source.x; })
+            .attr("y1", function(d) { return d.source.y; })
+            .attr("x2", function(d) { return d.target.x; })
+            .attr("y2", function(d) { return d.target.y; });
+
+        node.attr("cx", function(d) { return d.x; })
+            .attr("cy", function(d) { return d.y; });
+    })
+}
+
+
+
+function ResultHandler (nodes){
+    this._parents = [];
+    this._nodes = nodes;
+    this._groups = [];
+    this._links = [];
+
+    this.groups = function (){
+        if (_groups.length){
+            return _groups;
+        }
+        for (var i = 0; i < _nodes; i++) {
+            _groups[_nodes[i].group].push({
+                index : i,
+                element : _nodes[i]
+            });
+        }
+    }
+    this.parentIndex = function (id){
+        for (var i = 0; i < this._nodes.length; i++) {
+            if(this._nodes[i]._id == id){
+                return i;
+            }
+
+        }
+    }
+
+    this.getLinks = function (){
+        var n;
+        for (var i = 0; i < this._nodes.length; i++) {
+            n = this._nodes[i];
+            if (n.parent != null){
+                this._links.push({
+                    source : this.parentIndex(n.parent),
+                    target : i
+                });
+            }
+        }
+        return this._links;
+    }
+
+}
+
+

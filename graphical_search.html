@@ -32,6 +32,8 @@
     <div class="map">
         {{#constant}}
         <svg width="100%" height="100%">
+            <g class="node"></g>
+            <g class="link"></g>
         </svg>
         {{/constant}}
     </div>
@@ -51,5 +53,6 @@
 <template name="work">
     <div class="work {{selected}}">
         <span class="title">{{title}}</span>
+        <span class="id">{{_title}}</span>
     </div>
 </template>
