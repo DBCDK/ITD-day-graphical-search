@@ -43,6 +43,20 @@ var force = d3.layout.force()
     .size([1000, 1000])
     .gravity(0.01);
 
+
+Template.map.events({
+    'mousedown circle, mousedown text': function (event, template) {
+        Session.set("selected", event.currentTarget.id);
+        console.log(event.currentTarget);
+    }/*,
+    'dblclick .map': function (event, template) {
+        if (! Meteor.userId()) // must be logged in to create events
+            return;
+        var coords = coordsRelativeToElement(event.currentTarget, event);
+        openCreateDialog(coords.x / 500, coords.y / 500);
+    }*/
+});
+
 Template.map.rendered = function () {
     var self = this;
     svg = self.find("svg");
@@ -92,9 +106,13 @@ Template.work.events({
  * @constructor
  */
 ForceView = function (works, svg) {
+    var selected = Session.get('selected');
+    if (selected){
+        selected = Works.findOne(selected);
+        console.log(selected);
+    }
     d3.select(svg).selectAll(".node").remove();
     d3.select(svg).selectAll(".link").remove();
-    console.log(works);
     if (!works || works.length == 0) {
         console.log('cancel');
         return;
@@ -115,9 +133,10 @@ ForceView = function (works, svg) {
         .style("stroke-width", function(d) { return Math.sqrt(10); });
 
     var node = d3.select(svg).selectAll(".node")
-        .data(works)
+        .data(works, function(d) { return d._id; })
         .enter().append("circle")
         .attr("class", "node")
+        .attr("id", function (party) { return party._id; })
         .call(force.drag)
         .attr("r", function(d) { return d.count; })
         .style("fill", function(d) { return color(d.group); });
